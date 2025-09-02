@@ -10,13 +10,12 @@ from datetime import datetime
 import nest_asyncio
 from pyngrok import ngrok
 
-
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # In-memory storage
 chat_history = []
-SERVER_URL = "http://localhost:8001"
+SERVER_URL = "http://localhost:8001"  # Will be updated by interactive setup
 
 @app.get("/", response_class=HTMLResponse)
 async def user_chat(request: Request):
@@ -35,14 +34,16 @@ async def send_message(request: Request):
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
         chat_history.append(user_msg)
+        print(f"Sending message to server: {message}")  # Debug log
         
         # Send to server for processing
         try:
-            async with httpx.AsyncClient() as client:
-                await client.post(f"{SERVER_URL}/receive_message", 
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(f"{SERVER_URL}/receive_message", 
                                 json={"message": message})
-        except:
-            pass  # Server might be offline
+                print(f"Message sent to server. Status: {response.status_code}")  # Debug log
+        except Exception as e:
+            print(f"Error sending message to server: {e}")  # Better error logging
     
     return {"status": "sent"}
 
@@ -59,14 +60,13 @@ async def receive_response(request: Request):
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
         chat_history.append(server_msg)
+        print(f"Received response from server: {response}")  # Debug log
     
     return {"status": "received"}
 
 @app.get("/get_messages")
 async def get_messages():
     return {"messages": chat_history}
-
-
 
 def interactive_url_setup():
     """Interactive setup for server URL"""
@@ -89,16 +89,14 @@ def interactive_url_setup():
     
     print("="*50)
 
-
 if __name__ == "__main__":
-    #uvicorn.run(app, host="0.0.0.0", port=8000)
     auth_token = "328506F8MSDrngMzSW9iVNbO8x0_3h5YdfJYVqpgL3p6EUCuj"
 
     # Set the authtoken
     ngrok.set_auth_token(auth_token)
 
     ngrok_tunnel = ngrok.connect(8000)
-    print('Public URL:', ngrok_tunnel.public_url)
+    print('User Public URL:', ngrok_tunnel.public_url)
 
     interactive_url_setup()
     
