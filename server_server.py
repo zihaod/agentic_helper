@@ -8,12 +8,33 @@ from datetime import datetime
 import nest_asyncio
 from pyngrok import ngrok
 
+# Import the agent components
+from agentic_helper import NutritionistAgent
+from zai import ZhipuAiClient
+
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # In-memory storage
 chat_history = []
 USER_URL = "http://localhost:8000"  # Will be updated by interactive setup
+
+# Initialize the AI client and agent
+client = ZhipuAiClient(api_key="049d19837128423582abbf65c34a0cb3.AGTarP6jc544gRQM")
+agent = NutritionistAgent(client)
+
+# Pet information - you might want to make this configurable per user
+pet_info = {
+    "姓名": "lucky",
+    "品种": "中华田园猫-橘猫",
+    "年龄": "3岁",
+    "性别": "雄性",
+    "体重": "4.6kg",
+    "绝育史": "已绝育",
+    "疫苗史": "已接种疫苗",
+    "行为数据": "近期未见异常波动。整体运动量（跑步/跳跃/逗猫）高于同类猫咪平均值约12%，较活泼。",
+    "健康历史": "曾于换粮时出现软便，肠胃敏感",
+}
 
 @app.get("/", response_class=HTMLResponse)
 async def server_chat(request: Request):
@@ -39,23 +60,66 @@ async def receive_message(request: Request):
 
 @app.post("/generate_ai_response")
 async def generate_ai_response(request: Request):
-    """Generate AI response for the given message"""
-    data = await request.json()
-    user_message = data.get("message", "").strip()
+    """Generate AI response for the given message using NutritionistAgent"""
+    print("=== Generate AI Response Called ===")
     
-    if user_message:
-        # Simple AI response generation (replace with GLM-4.5V integration)
-        # For now, this is a placeholder response
-        ai_response = f"AI Response to: '{user_message}'. This is where you would integrate GLM-4.5V model response."
+    try:
+        data = await request.json()
+        user_message = data.get("message", "").strip()
+        print(f"Received user_message: {user_message}")
+        print(f"Current chat_history length: {len(chat_history)}")
         
-        # TODO: Replace this with actual GLM-4.5V API call
-        # Example:
-        # ai_response = await call_glm_api(user_message)
+        # Print last few messages for debugging
+        print("Last 3 messages in chat_history:")
+        for i, msg in enumerate(chat_history[-3:]):
+            print(f"  {len(chat_history)-3+i}: {msg['role']} - {msg['content'][:50]}...")
         
-        print(f"Generated AI response for: {user_message}")
+        if not user_message:
+            print("No user message provided")
+            return {"response": ""}
+        
+        # Convert chat_history format to match agent expectations
+        # Filter out timestamp and convert role names
+        agent_history = []
+        for i, msg in enumerate(chat_history):
+            role = msg["role"]
+            # Convert server role to assistant for the agent
+            if role == "server":
+                role = "assistant"
+            
+            agent_history.append({
+                "role": role,
+                "content": msg["content"]
+            })
+            print(f"History {i}: {role} - {msg['content'][:50]}...")
+        
+        print(f"Calling agent with {len(agent_history)} history items")
+        
+        # Print the exact history that will be sent to the agent
+        print("=== EXACT AGENT HISTORY ===")
+        for i, item in enumerate(agent_history):
+            print(f"{i}: {item['role']} -> {item['content']}")
+        print("=== END AGENT HISTORY ===")
+        
+        # Generate response using the nutritionist agent
+        ai_response = agent.generate_response(
+            chat_history=agent_history,
+            user_context=pet_info
+        )
+        
+        print(f"AI Response generated: {ai_response[:100]}...")
+        print("=== AI Response Generation Successful ===")
+        
         return {"response": ai_response}
-    
-    return {"response": ""}
+        
+    except Exception as e:
+        print(f"ERROR in generate_ai_response: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Fallback response
+        ai_response = "抱歉，我遇到了一些技术问题。请稍后再试。"
+        return {"response": ai_response}
 
 @app.post("/send_response")
 async def send_response(request: Request):
