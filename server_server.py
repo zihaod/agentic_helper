@@ -99,6 +99,29 @@ async def get_data():
         "pending": pending_messages
     }
 
+
+def interactive_url_setup():
+    """Interactive setup for server URL"""
+    global SERVER_URL
+    
+    print("\n" + "="*50)
+    print("🔗 URL CONFIGURATION")
+    print("="*50)
+    print("Please start your server_server.py and get its ngrok URL")
+    print("Then enter it below:")
+    
+    while True:
+        url = input("\nEnter Staff Server URL (https://xxx.ngrok-free.app): ").strip()
+        if url.startswith("https://") and "ngrok" in url:
+            SERVER_URL = url
+            print(f"✅ Staff Server URL set to: {SERVER_URL}")
+            break
+        else:
+            print("❌ Please enter a valid ngrok HTTPS URL")
+    
+    print("="*50)
+
+
 if __name__ == "__main__":
     auth_token = "327rd97T1gGUvcX2xw51UKU4JG7_4AVEKTw7CAMoH2MNijqwd"
 
@@ -107,6 +130,8 @@ if __name__ == "__main__":
 
     ngrok_tunnel = ngrok.connect(8001)
     print('Public URL:', ngrok_tunnel.public_url)
+
+    interactive_setup()
 
     nest_asyncio.apply()
 
