@@ -68,14 +68,14 @@ async def get_messages():
 
 if __name__ == "__main__":
     #uvicorn.run(app, host="0.0.0.0", port=8000)
-    auth_token = "327rd97T1gGUvcX2xw51UKU4JG7_4AVEKTw7CAMoH2MNijqwd"
+    auth_token = "328506F8MSDrngMzSW9iVNbO8x0_3h5YdfJYVqpgL3p6EUCuj"
 
     # Set the authtoken
     ngrok.set_auth_token(auth_token)
 
     ngrok_tunnel = ngrok.connect(8000)
     print('Public URL:', ngrok_tunnel.public_url)
-
+    
     nest_asyncio.apply()
 
     uvicorn.run(app, port=8000)
