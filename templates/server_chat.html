@@ -7,53 +7,31 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
         }
         
-        .main-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        
-        .panel {
+        .chat-container {
             background: white;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             overflow: hidden;
         }
         
-        .panel-header {
+        .chat-header {
             background: #28a745;
             color: white;
             padding: 15px 20px;
             text-align: center;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .refresh-btn {
-            background: rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.5);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        
-        .refresh-btn:hover {
-            background: rgba(255,255,255,0.3);
         }
         
         .chat-messages {
-            height: 400px;
+            height: 500px;
             overflow-y: auto;
             padding: 20px;
+            border-bottom: 1px solid #eee;
         }
         
         .message {
@@ -71,7 +49,7 @@
         }
         
         .message-bubble {
-            max-width: 80%;
+            max-width: 70%;
             padding: 12px 16px;
             border-radius: 20px;
             word-wrap: break-word;
@@ -93,50 +71,36 @@
             margin: 5px 10px;
         }
         
-        .pending-item {
+        .response-panel {
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .response-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 10px;
-            margin-bottom: 15px;
-            padding: 15px;
-        }
-        
-        .pending-message {
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-        
-        .ai-response {
-            background: #e3f2fd;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-        
-        .response-input {
-            width: 100%;
-            min-height: 80px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
             resize: vertical;
             font-family: inherit;
-            margin-bottom: 10px;
+            font-size: 14px;
+            margin-bottom: 15px;
         }
         
         .button-group {
             display: flex;
             gap: 10px;
+            align-items: center;
         }
         
         .btn {
-            padding: 8px 16px;
+            padding: 10px 20px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
+            font-weight: 500;
         }
         
         .btn-primary {
@@ -150,12 +114,35 @@
         }
         
         .btn:hover {
-            opacity: 0.8;
+            opacity: 0.9;
         }
         
         .btn:disabled {
             background: #ccc;
             cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .status-message {
+            margin-left: auto;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
         }
         
         .empty-state {
@@ -165,89 +152,80 @@
             font-style: italic;
         }
         
-        .new-indicator {
-            background: #ff4444;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            margin-left: 10px;
+        .last-user-message {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-size: 13px;
         }
     </style>
 </head>
 <body>
-    <div class="main-container">
-        <div class="panel">
-            <div class="panel-header">
-                <h2>Chat History</h2>
-            </div>
-            <div class="chat-messages" id="chatMessages">
-                <!-- Chat history will be loaded here -->
-            </div>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>Staff Chat Interface</h2>
         </div>
         
-        <div class="panel">
-            <div class="panel-header">
-                <h2>Pending Messages <span id="newIndicator" class="new-indicator" style="display:none;">New</span></h2>
-                <button class="refresh-btn" onclick="loadPendingMessages()">↻ Refresh</button>
+        <div class="chat-messages" id="chatMessages">
+            <!-- Chat history will be loaded here -->
+        </div>
+        
+        <div class="response-panel">
+            <div id="lastUserMessage" class="last-user-message" style="display: none;">
+                <strong>Responding to:</strong> <span id="lastMessageText"></span>
             </div>
-            <div class="chat-messages" id="pendingMessages">
-                <!-- Pending messages will be loaded here -->
+            
+            <textarea 
+                id="responseInput" 
+                class="response-textarea" 
+                placeholder="Type your response here... You can also click 'Generate AI Response' to get a suggestion."
+            ></textarea>
+            
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="generateAIResponse()">
+                    🤖 Generate AI Response
+                </button>
+                <button class="btn btn-success" onclick="sendResponse()">
+                    ✉️ Send Response
+                </button>
+                <div id="statusMessage" class="status-message" style="display: none;"></div>
             </div>
         </div>
     </div>
 
     <script>
-        let lastPendingCount = 0;
+        let lastUserMessageContent = '';
         
-        // Only load chat history automatically
         async function loadChatHistory() {
             try {
-                const response = await fetch('/get_data');
+                const response = await fetch('/get_chat_history');
                 const data = await response.json();
                 displayChatHistory(data.messages);
                 
-                // Check if there are new pending messages
-                if (data.pending.length > lastPendingCount) {
-                    document.getElementById('newIndicator').style.display = 'inline';
+                // Update last user message
+                const userMessages = data.messages.filter(m => m.role === 'user');
+                if (userMessages.length > 0) {
+                    const lastMsg = userMessages[userMessages.length - 1];
+                    lastUserMessageContent = lastMsg.content;
+                    document.getElementById('lastMessageText').textContent = 
+                        lastMsg.content.length > 100 
+                            ? lastMsg.content.substring(0, 100) + '...' 
+                            : lastMsg.content;
+                    document.getElementById('lastUserMessage').style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error loading chat history:', error);
             }
         }
         
-        // Load pending messages only when called manually
-        async function loadPendingMessages() {
-            try {
-                const response = await fetch('/get_data');
-                const data = await response.json();
-                displayPendingMessages(data.pending);
-                lastPendingCount = data.pending.length;
-                document.getElementById('newIndicator').style.display = 'none';
-            } catch (error) {
-                console.error('Error loading pending messages:', error);
-            }
-        }
-        
-        // Initial load of all data
-        async function initialLoad() {
-            try {
-                const response = await fetch('/get_data');
-                const data = await response.json();
-                displayChatHistory(data.messages);
-                displayPendingMessages(data.pending);
-                lastPendingCount = data.pending.length;
-            } catch (error) {
-                console.error('Error loading data:', error);
-            }
-        }
-        
         function displayChatHistory(messages) {
             const chatMessages = document.getElementById('chatMessages');
-            const shouldScroll = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
+            const shouldScroll = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50;
             
             if (messages.length === 0) {
-                chatMessages.innerHTML = '<div class="empty-state">No chat history yet</div>';
+                chatMessages.innerHTML = '<div class="empty-state">No messages yet. Waiting for user messages...</div>';
                 return;
             }
             
@@ -265,75 +243,60 @@
                 chatMessages.appendChild(messageDiv);
             });
             
-            // Only auto-scroll if already at bottom
+            // Auto-scroll if near bottom
             if (shouldScroll) {
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }
         }
         
-        function displayPendingMessages(pending) {
-            const pendingContainer = document.getElementById('pendingMessages');
-            
-            if (pending.length === 0) {
-                pendingContainer.innerHTML = '<div class="empty-state">No pending messages</div>';
+        async function generateAIResponse() {
+            if (!lastUserMessageContent) {
+                showStatus('No user message to respond to', 'error');
                 return;
             }
             
-            pendingContainer.innerHTML = '';
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = '⏳ Generating...';
             
-            pending.forEach((item, index) => {
-                const pendingDiv = document.createElement('div');
-                pendingDiv.className = 'pending-item';
-                
-                pendingDiv.innerHTML = `
-                    <div class="pending-message">
-                        <strong>User:</strong> ${item.content}
-                    </div>
-                    <div class="timestamp">${item.timestamp}</div>
-                    ${item.ai_response ? `
-                        <div class="ai-response">
-                            <strong>AI Response:</strong><br>
-                            ${item.ai_response}
-                        </div>
-                    ` : ''}
-                    <textarea class="response-input" id="response_${index}" placeholder="Edit response or write your own...">${item.ai_response}</textarea>
-                    <div class="button-group">
-                        <button class="btn btn-primary" onclick="generateResponse(${index})">Generate AI Response</button>
-                        <button class="btn btn-success" onclick="sendResponse(${index})">Send Response</button>
-                    </div>
-                `;
-                
-                pendingContainer.appendChild(pendingDiv);
-            });
-        }
-        
-        async function generateResponse(index) {
             try {
-                const response = await fetch('/generate_response', {
+                const response = await fetch('/generate_ai_response', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ index: index }),
+                    body: JSON.stringify({ 
+                        message: lastUserMessageContent 
+                    }),
                 });
                 
-                if (response.ok) {
-                    // Manually refresh pending messages after generating
-                    await loadPendingMessages();
+                const data = await response.json();
+                
+                if (data.response) {
+                    document.getElementById('responseInput').value = data.response;
+                    showStatus('AI response generated! You can edit it before sending.', 'info');
                 }
             } catch (error) {
-                console.error('Error generating response:', error);
+                console.error('Error generating AI response:', error);
+                showStatus('Failed to generate AI response', 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = '🤖 Generate AI Response';
             }
         }
         
-        async function sendResponse(index) {
-            const responseInput = document.getElementById(`response_${index}`);
+        async function sendResponse() {
+            const responseInput = document.getElementById('responseInput');
             const response = responseInput.value.trim();
             
             if (!response) {
-                alert('Please enter a response first');
+                showStatus('Please enter a response', 'error');
                 return;
             }
+            
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = '📤 Sending...';
             
             try {
                 const result = await fetch('/send_response', {
@@ -342,25 +305,49 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ 
-                        index: index,
                         response: response 
                     }),
                 });
                 
                 if (result.ok) {
-                    // Refresh both sections after sending
+                    responseInput.value = '';
+                    showStatus('Response sent successfully!', 'success');
                     await loadChatHistory();
-                    await loadPendingMessages();
                 }
             } catch (error) {
                 console.error('Error sending response:', error);
+                showStatus('Failed to send response', 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = '✉️ Send Response';
             }
         }
         
-        // Initial load
-        initialLoad();
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('statusMessage');
+            statusElement.textContent = message;
+            statusElement.className = `status-message status-${type}`;
+            statusElement.style.display = 'block';
+            
+            setTimeout(() => {
+                statusElement.style.display = 'none';
+            }, 3000);
+        }
         
-        // Only auto-refresh chat history every 2 seconds
+        // Allow Ctrl+Enter to send
+        document.addEventListener('DOMContentLoaded', () => {
+            const textarea = document.getElementById('responseInput');
+            textarea.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    sendResponse();
+                }
+            });
+        });
+        
+        // Load initial data
+        loadChatHistory();
+        
+        // Auto-refresh chat history every 2 seconds
         setInterval(loadChatHistory, 2000);
     </script>
 </body>
