@@ -66,6 +66,30 @@ async def receive_response(request: Request):
 async def get_messages():
     return {"messages": chat_history}
 
+
+
+def interactive_url_setup():
+    """Interactive setup for server URL"""
+    global SERVER_URL
+    
+    print("\n" + "="*50)
+    print("🔗 URL CONFIGURATION")
+    print("="*50)
+    print("Please start your server_server.py and get its ngrok URL")
+    print("Then enter it below:")
+    
+    while True:
+        url = input("\nEnter Staff Server URL (https://xxx.ngrok-free.app): ").strip()
+        if url.startswith("https://") and "ngrok" in url:
+            SERVER_URL = url
+            print(f"✅ Staff Server URL set to: {SERVER_URL}")
+            break
+        else:
+            print("❌ Please enter a valid ngrok HTTPS URL")
+    
+    print("="*50)
+
+
 if __name__ == "__main__":
     #uvicorn.run(app, host="0.0.0.0", port=8000)
     auth_token = "328506F8MSDrngMzSW9iVNbO8x0_3h5YdfJYVqpgL3p6EUCuj"
@@ -75,6 +99,8 @@ if __name__ == "__main__":
 
     ngrok_tunnel = ngrok.connect(8000)
     print('Public URL:', ngrok_tunnel.public_url)
+
+    interactive_url_setup()
     
     nest_asyncio.apply()
 
