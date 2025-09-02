@@ -131,7 +131,7 @@ if __name__ == "__main__":
     ngrok_tunnel = ngrok.connect(8001)
     print('Public URL:', ngrok_tunnel.public_url)
 
-    interactiv_url_setup()
+    interactive_url_setup()
 
     nest_asyncio.apply()
 
