@@ -13,19 +13,15 @@ templates = Jinja2Templates(directory="templates")
 
 # In-memory storage
 chat_history = []
-pending_messages = []
 USER_URL = "http://localhost:8000"  # Will be updated by interactive setup
 
 @app.get("/", response_class=HTMLResponse)
 async def server_chat(request: Request):
-    return templates.TemplateResponse("server_chat.html", {
-        "request": request, 
-        "messages": chat_history,
-        "pending": pending_messages
-    })
+    return templates.TemplateResponse("server_chat.html", {"request": request})
 
 @app.post("/receive_message")
 async def receive_message(request: Request):
+    """Receive message from user server"""
     data = await request.json()
     message = data.get("message", "").strip()
     
@@ -37,71 +33,62 @@ async def receive_message(request: Request):
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
         chat_history.append(user_msg)
-        
-        # Add to pending messages for staff review
-        pending_msg = {
-            "content": message,
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "ai_response": ""
-        }
-        pending_messages.append(pending_msg)
-        print(f"Received message: {message}")  # Debug log
+        print(f"Received message from user: {message}")
     
     return {"status": "received"}
 
-@app.post("/generate_response")
-async def generate_response(request: Request):
+@app.post("/generate_ai_response")
+async def generate_ai_response(request: Request):
+    """Generate AI response for the given message"""
     data = await request.json()
-    message_index = data.get("index", 0)
+    user_message = data.get("message", "").strip()
     
-    if 0 <= message_index < len(pending_messages):
-        # Simple AI response generation (you can integrate GLM-4.5V here)
-        user_message = pending_messages[message_index]["content"]
-        
-        # Basic response generation (replace with GLM-4.5V integration)
+    if user_message:
+        # Simple AI response generation (replace with GLM-4.5V integration)
+        # For now, this is a placeholder response
         ai_response = f"AI Response to: '{user_message}'. This is where you would integrate GLM-4.5V model response."
         
-        pending_messages[message_index]["ai_response"] = ai_response
-        print(f"Generated AI response for message {message_index}")  # Debug log
+        # TODO: Replace this with actual GLM-4.5V API call
+        # Example:
+        # ai_response = await call_glm_api(user_message)
+        
+        print(f"Generated AI response for: {user_message}")
+        return {"response": ai_response}
     
-    return {"status": "generated"}
+    return {"response": ""}
 
 @app.post("/send_response")
 async def send_response(request: Request):
+    """Send staff response to user"""
     data = await request.json()
-    message_index = data.get("index", 0)
-    edited_response = data.get("response", "").strip()
+    response = data.get("response", "").strip()
     
-    if 0 <= message_index < len(pending_messages) and edited_response:
+    if response:
         # Add server response to history
         server_msg = {
             "role": "server",
-            "content": edited_response,
+            "content": response,
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
         chat_history.append(server_msg)
         
         # Send response back to user
         try:
-            print(f"Sending response to user at {USER_URL}: {edited_response}")  # Debug log
+            print(f"Sending response to user at {USER_URL}: {response}")
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(f"{USER_URL}/receive_response", 
-                                json={"response": edited_response})
-                print(f"Response sent successfully. Status: {response.status_code}")  # Debug log
+                result = await client.post(f"{USER_URL}/receive_response", 
+                                          json={"response": response})
+                print(f"Response sent successfully. Status: {result.status_code}")
         except Exception as e:
-            print(f"Error sending response to user: {e}")  # Better error logging
-        
-        # Remove from pending
-        pending_messages.pop(message_index)
+            print(f"Error sending response to user: {e}")
+            return {"status": "error", "message": str(e)}
     
     return {"status": "sent"}
 
-@app.get("/get_data")
-async def get_data():
-    return {
-        "messages": chat_history,
-        "pending": pending_messages
-    }
+@app.get("/get_chat_history")
+async def get_chat_history():
+    """Get all chat messages"""
+    return {"messages": chat_history}
 
 def interactive_url_setup():
     """Interactive setup for server URL"""
