@@ -31,6 +31,23 @@
             color: white;
             padding: 15px 20px;
             text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .refresh-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .refresh-btn:hover {
+            background: rgba(255,255,255,0.3);
         }
         
         .chat-messages {
@@ -147,6 +164,15 @@
             padding: 40px;
             font-style: italic;
         }
+        
+        .new-indicator {
+            background: #ff4444;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
@@ -162,7 +188,8 @@
         
         <div class="panel">
             <div class="panel-header">
-                <h2>Pending Messages</h2>
+                <h2>Pending Messages <span id="newIndicator" class="new-indicator" style="display:none;">New</span></h2>
+                <button class="refresh-btn" onclick="loadPendingMessages()">↻ Refresh</button>
             </div>
             <div class="chat-messages" id="pendingMessages">
                 <!-- Pending messages will be loaded here -->
@@ -171,12 +198,45 @@
     </div>
 
     <script>
-        async function loadData() {
+        let lastPendingCount = 0;
+        
+        // Only load chat history automatically
+        async function loadChatHistory() {
+            try {
+                const response = await fetch('/get_data');
+                const data = await response.json();
+                displayChatHistory(data.messages);
+                
+                // Check if there are new pending messages
+                if (data.pending.length > lastPendingCount) {
+                    document.getElementById('newIndicator').style.display = 'inline';
+                }
+            } catch (error) {
+                console.error('Error loading chat history:', error);
+            }
+        }
+        
+        // Load pending messages only when called manually
+        async function loadPendingMessages() {
+            try {
+                const response = await fetch('/get_data');
+                const data = await response.json();
+                displayPendingMessages(data.pending);
+                lastPendingCount = data.pending.length;
+                document.getElementById('newIndicator').style.display = 'none';
+            } catch (error) {
+                console.error('Error loading pending messages:', error);
+            }
+        }
+        
+        // Initial load of all data
+        async function initialLoad() {
             try {
                 const response = await fetch('/get_data');
                 const data = await response.json();
                 displayChatHistory(data.messages);
                 displayPendingMessages(data.pending);
+                lastPendingCount = data.pending.length;
             } catch (error) {
                 console.error('Error loading data:', error);
             }
@@ -184,6 +244,7 @@
         
         function displayChatHistory(messages) {
             const chatMessages = document.getElementById('chatMessages');
+            const shouldScroll = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
             
             if (messages.length === 0) {
                 chatMessages.innerHTML = '<div class="empty-state">No chat history yet</div>';
@@ -204,7 +265,10 @@
                 chatMessages.appendChild(messageDiv);
             });
             
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            // Only auto-scroll if already at bottom
+            if (shouldScroll) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
         }
         
         function displayPendingMessages(pending) {
@@ -254,7 +318,8 @@
                 });
                 
                 if (response.ok) {
-                    await loadData(); // Refresh to show generated response
+                    // Manually refresh pending messages after generating
+                    await loadPendingMessages();
                 }
             } catch (error) {
                 console.error('Error generating response:', error);
@@ -283,18 +348,20 @@
                 });
                 
                 if (result.ok) {
-                    await loadData(); // Refresh data
+                    // Refresh both sections after sending
+                    await loadChatHistory();
+                    await loadPendingMessages();
                 }
             } catch (error) {
                 console.error('Error sending response:', error);
             }
         }
         
-        // Load data on page load
-        loadData();
+        // Initial load
+        initialLoad();
         
-        // Poll for updates every 2 seconds
-        setInterval(loadData, 2000);
+        // Only auto-refresh chat history every 2 seconds
+        setInterval(loadChatHistory, 2000);
     </script>
 </body>
 </html>
