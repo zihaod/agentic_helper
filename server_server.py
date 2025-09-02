@@ -14,7 +14,7 @@ templates = Jinja2Templates(directory="templates")
 # In-memory storage
 chat_history = []
 pending_messages = []
-USER_URL = "http://localhost:8000"
+USER_URL = "http://localhost:8000"  # Will be updated by interactive setup
 
 @app.get("/", response_class=HTMLResponse)
 async def server_chat(request: Request):
@@ -45,6 +45,7 @@ async def receive_message(request: Request):
             "ai_response": ""
         }
         pending_messages.append(pending_msg)
+        print(f"Received message: {message}")  # Debug log
     
     return {"status": "received"}
 
@@ -61,6 +62,7 @@ async def generate_response(request: Request):
         ai_response = f"AI Response to: '{user_message}'. This is where you would integrate GLM-4.5V model response."
         
         pending_messages[message_index]["ai_response"] = ai_response
+        print(f"Generated AI response for message {message_index}")  # Debug log
     
     return {"status": "generated"}
 
@@ -81,11 +83,13 @@ async def send_response(request: Request):
         
         # Send response back to user
         try:
-            async with httpx.AsyncClient() as client:
-                await client.post(f"{USER_URL}/receive_response", 
+            print(f"Sending response to user at {USER_URL}: {edited_response}")  # Debug log
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(f"{USER_URL}/receive_response", 
                                 json={"response": edited_response})
-        except:
-            pass  # User server might be offline
+                print(f"Response sent successfully. Status: {response.status_code}")  # Debug log
+        except Exception as e:
+            print(f"Error sending response to user: {e}")  # Better error logging
         
         # Remove from pending
         pending_messages.pop(message_index)
@@ -99,28 +103,26 @@ async def get_data():
         "pending": pending_messages
     }
 
-
 def interactive_url_setup():
     """Interactive setup for server URL"""
-    global SERVER_URL
+    global USER_URL
     
     print("\n" + "="*50)
     print("🔗 URL CONFIGURATION")
     print("="*50)
-    print("Please start your server_server.py and get its ngrok URL")
+    print("Please start your user_server.py and get its ngrok URL")
     print("Then enter it below:")
     
     while True:
-        url = input("\nEnter Staff Server URL (https://xxx.ngrok-free.app): ").strip()
+        url = input("\nEnter User Server URL (https://xxx.ngrok-free.app): ").strip()
         if url.startswith("https://") and "ngrok" in url:
-            SERVER_URL = url
-            print(f"✅ Staff Server URL set to: {SERVER_URL}")
+            USER_URL = url
+            print(f"✅ User Server URL set to: {USER_URL}")
             break
         else:
             print("❌ Please enter a valid ngrok HTTPS URL")
     
     print("="*50)
-
 
 if __name__ == "__main__":
     auth_token = "327rd97T1gGUvcX2xw51UKU4JG7_4AVEKTw7CAMoH2MNijqwd"
@@ -129,7 +131,7 @@ if __name__ == "__main__":
     ngrok.set_auth_token(auth_token)
 
     ngrok_tunnel = ngrok.connect(8001)
-    print('Public URL:', ngrok_tunnel.public_url)
+    print('Server Public URL:', ngrok_tunnel.public_url)
 
     interactive_url_setup()
 
