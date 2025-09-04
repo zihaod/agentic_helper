@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 import uvicorn
 import httpx
 from datetime import datetime
+import base64
 
 import nest_asyncio
 from pyngrok import ngrok
@@ -44,17 +45,21 @@ async def server_chat(request: Request):
 async def receive_message(request: Request):
     """Receive message from user server"""
     data = await request.json()
-    message = data.get("message", "").strip()
+    message = data.get("message")
     
     if message:
-        # Add user message to history
-        user_msg = {
-            "role": "user",
-            "content": message,
-            "timestamp": datetime.now().strftime("%H:%M:%S")
-        }
-        chat_history.append(user_msg)
-        print(f"Received message from user: {message}")
+        # Add user message to history (message is already formatted correctly)
+        chat_history.append(message)
+        
+        # Log message info
+        if isinstance(message.get("content"), list):
+            has_image = any(item.get("type") == "image_url" for item in message["content"])
+            has_text = any(item.get("type") == "text" for item in message["content"])
+            log_msg = f"Received message - Text: {has_text}, Image: {has_image}"
+        else:
+            log_msg = f"Received text message: {message['content'][:50]}..."
+        
+        print(log_msg)
     
     return {"status": "received"}
 
@@ -65,14 +70,24 @@ async def generate_ai_response(request: Request):
     
     try:
         data = await request.json()
-        user_message = data.get("message", "").strip()
-        print(f"Received user_message: {user_message}")
+        user_message = data.get("message")
+        print(f"Received user_message: {type(user_message)}")
         print(f"Current chat_history length: {len(chat_history)}")
         
         # Print last few messages for debugging
         print("Last 3 messages in chat_history:")
         for i, msg in enumerate(chat_history[-3:]):
-            print(f"  {len(chat_history)-3+i}: {msg['role']} - {msg['content'][:50]}...")
+            content_preview = ""
+            if isinstance(msg.get("content"), str):
+                content_preview = msg["content"][:50]
+            elif isinstance(msg.get("content"), list):
+                text_items = [item.get("text", "") for item in msg["content"] if item.get("type") == "text"]
+                content_preview = " ".join(text_items)[:50]
+                has_image = any(item.get("type") == "image_url" for item in msg["content"])
+                if has_image:
+                    content_preview += " [+Image]"
+            
+            print(f"  {len(chat_history)-3+i}: {msg['role']} - {content_preview}...")
         
         if not user_message:
             print("No user message provided")
@@ -94,7 +109,19 @@ async def generate_ai_response(request: Request):
         # Print the exact history that will be sent to the agent
         print("=== EXACT AGENT HISTORY ===")
         for i, item in enumerate(agent_history):
-            print(f"{i}: {item['role']} -> {item['content']}")
+            content_str = ""
+            if isinstance(item["content"], str):
+                content_str = item["content"][:100]
+            elif isinstance(item["content"], list):
+                content_parts = []
+                for part in item["content"]:
+                    if part.get("type") == "text":
+                        content_parts.append(f"Text: {part.get('text', '')[:50]}")
+                    elif part.get("type") == "image_url":
+                        content_parts.append("Image: [base64 data]")
+                content_str = ", ".join(content_parts)
+            
+            print(f"{i}: {item['role']} -> {content_str}")
         print("=== END AGENT HISTORY ===")
         
         # Generate response using the nutritionist agent
