@@ -65,6 +65,14 @@
             color: white;
         }
         
+        .message-image {
+            max-width: 300px;
+            max-height: 200px;
+            border-radius: 10px;
+            margin: 8px 0;
+            cursor: pointer;
+        }
+        
         .timestamp {
             font-size: 0.8em;
             color: #666;
@@ -160,6 +168,51 @@
             margin-bottom: 10px;
             font-size: 13px;
         }
+        
+        .last-user-image {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 8px;
+            margin: 8px 0;
+            cursor: pointer;
+        }
+
+        /* Modal styles for image viewing */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+        }
+        
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 90%;
+            max-height: 90%;
+        }
+        
+        .modal img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: white;
+            font-size: 30px;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -174,7 +227,9 @@
         
         <div class="response-panel">
             <div id="lastUserMessage" class="last-user-message" style="display: none;">
-                <strong>Responding to:</strong> <span id="lastMessageText"></span>
+                <strong>Responding to:</strong> 
+                <div id="lastMessageText"></div>
+                <div id="lastMessageImage"></div>
             </div>
             
             <textarea 
@@ -195,8 +250,27 @@
         </div>
     </div>
 
+    <!-- Modal for viewing images -->
+    <div id="imageModal" class="modal" onclick="closeModal()">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <img id="modalImage" src="" alt="Full size image">
+        </div>
+    </div>
+
     <script>
-        let lastUserMessageContent = '';
+        let lastUserMessage = null;
+        
+        function openImageModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = imageSrc;
+            modal.style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
         
         async function loadChatHistory() {
             try {
@@ -208,11 +282,36 @@
                 const userMessages = data.messages.filter(m => m.role === 'user');
                 if (userMessages.length > 0) {
                     const lastMsg = userMessages[userMessages.length - 1];
-                    lastUserMessageContent = lastMsg.content;
+                    lastUserMessage = lastMsg;
+                    
+                    // Display text content
+                    let textContent = '';
+                    if (typeof lastMsg.content === 'string') {
+                        textContent = lastMsg.content;
+                    } else if (Array.isArray(lastMsg.content)) {
+                        // Extract text from mixed content
+                        const textItems = lastMsg.content.filter(item => item.type === 'text');
+                        textContent = textItems.map(item => item.text).join(' ');
+                    }
+                    
                     document.getElementById('lastMessageText').textContent = 
-                        lastMsg.content.length > 100 
-                            ? lastMsg.content.substring(0, 100) + '...' 
-                            : lastMsg.content;
+                        textContent.length > 100 
+                            ? textContent.substring(0, 100) + '...' 
+                            : textContent;
+                    
+                    // Display image if present
+                    let imageHtml = '';
+                    if (Array.isArray(lastMsg.content)) {
+                        const imageItems = lastMsg.content.filter(item => item.type === 'image_url');
+                        if (imageItems.length > 0) {
+                            imageHtml = `<img class="last-user-image" src="${imageItems[0].image_url.url}" alt="User image" onclick="openImageModal('${imageItems[0].image_url.url}')">`;
+                        }
+                    } else if (lastMsg.image) {
+                        // Handle legacy image format
+                        imageHtml = `<img class="last-user-image" src="${lastMsg.image}" alt="User image" onclick="openImageModal('${lastMsg.image}')">`;
+                    }
+                    
+                    document.getElementById('lastMessageImage').innerHTML = imageHtml;
                     document.getElementById('lastUserMessage').style.display = 'block';
                 }
             } catch (error) {
@@ -235,8 +334,28 @@
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${msg.role}`;
                 
+                let contentHtml = '';
+                
+                // Handle different message content types
+                if (typeof msg.content === 'string') {
+                    contentHtml = msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    // Handle mixed content (text + images)
+                    msg.content.forEach(item => {
+                        if (item.type === 'text') {
+                            contentHtml += item.text;
+                        } else if (item.type === 'image_url') {
+                            contentHtml += `<br><img class="message-image" src="${item.image_url.url}" alt="Uploaded image" onclick="openImageModal('${item.image_url.url}')">`;
+                        }
+                    });
+                } else if (msg.image) {
+                    // Handle legacy image format
+                    contentHtml = msg.content;
+                    contentHtml += `<br><img class="message-image" src="${msg.image}" alt="Uploaded image" onclick="openImageModal('${msg.image}')">`;
+                }
+                
                 messageDiv.innerHTML = `
-                    <div class="message-bubble">${msg.content}</div>
+                    <div class="message-bubble">${contentHtml}</div>
                     <div class="timestamp">${msg.timestamp}</div>
                 `;
                 
@@ -250,7 +369,7 @@
         }
         
         async function generateAIResponse() {
-            if (!lastUserMessageContent) {
+            if (!lastUserMessage) {
                 showStatus('No user message to respond to', 'error');
                 return;
             }
@@ -266,7 +385,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ 
-                        message: lastUserMessageContent 
+                        message: lastUserMessage
                     }),
                 });
                 
@@ -342,6 +461,13 @@
                     sendResponse();
                 }
             });
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
         });
         
         // Load initial data
