@@ -6,6 +6,7 @@ import uvicorn
 import httpx
 import asyncio
 from datetime import datetime
+import base64
 
 import nest_asyncio
 from pyngrok import ngrok
@@ -25,22 +26,52 @@ async def user_chat(request: Request):
 async def send_message(request: Request):
     data = await request.json()
     message = data.get("message", "").strip()
+    image = data.get("image")  # Base64 encoded image
     
-    if message:
+    if message or image:
+        # Create message content based on what's provided
+        if image and message:
+            # Both text and image
+            message_content = [
+                {
+                    "type": "text",
+                    "text": message
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image
+                    }
+                }
+            ]
+        elif image:
+            # Only image
+            message_content = [
+                {
+                    "type": "image_url", 
+                    "image_url": {
+                        "url": image
+                    }
+                }
+            ]
+        else:
+            # Only text
+            message_content = message
+        
         # Add user message to history
         user_msg = {
             "role": "user",
-            "content": message,
+            "content": message_content,
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
         chat_history.append(user_msg)
-        print(f"Sending message to server: {message}")  # Debug log
+        print(f"Sending message to server: {message if message else '[Image]'}")  # Debug log
         
         # Send to server for processing
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(f"{SERVER_URL}/receive_message", 
-                                json={"message": message})
+                                json={"message": user_msg})
                 print(f"Message sent to server. Status: {response.status_code}")  # Debug log
         except Exception as e:
             print(f"Error sending message to server: {e}")  # Better error logging
