@@ -83,17 +83,11 @@ async def generate_ai_response(request: Request):
         agent_history = []
         for i, msg in enumerate(chat_history):
             role = msg["role"]
-            # Convert server role to assistant for the agent
-            if role == "server":
-                role = "assistant"
             
             agent_history.append({
                 "role": role,
                 "content": msg["content"]
             })
-            print(f"History {i}: {role} - {msg['content'][:50]}...")
-        
-        print(f"Calling agent with {len(agent_history)} history items")
         
         # Print the exact history that will be sent to the agent
         print("=== EXACT AGENT HISTORY ===")
@@ -107,9 +101,6 @@ async def generate_ai_response(request: Request):
             user_context=pet_info
         )
         
-        print(f"AI Response generated: {ai_response[:100]}...")
-        print("=== AI Response Generation Successful ===")
-        
         return {"response": ai_response}
         
     except Exception as e:
@@ -118,7 +109,7 @@ async def generate_ai_response(request: Request):
         traceback.print_exc()
         
         # Fallback response
-        ai_response = "抱歉，我遇到了一些技术问题。请稍后再试。"
+        ai_response = "服务器繁忙，请稍后再试。"
         return {"response": ai_response}
 
 @app.post("/send_response")
@@ -130,7 +121,7 @@ async def send_response(request: Request):
     if response:
         # Add server response to history
         server_msg = {
-            "role": "server",
+            "role": "assistant",
             "content": response,
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
