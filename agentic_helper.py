@@ -93,3 +93,32 @@ if __name__ == "__main__":
     agent = NutritionistAgent(client)
     response = agent.generate_response([{"role": "user", "content": "你好我想问问lucky身体情况如何"}, {"role": "assistant", "content": "你好宝子，稍等我帮你看看"}], pet_info)
     print(response)
+
+    # Prediction with image input
+    img_path = "your/path/xxx.png"
+    with open(img_path, "rb") as img_file:
+        img_base = base64.b64encode(img_file.read()).decode("utf-8")
+    
+
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": img_base
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": "请描述这个图片"
+                }
+            ]
+        }
+    ]
+
+    response = agent.generate_response(messages, pet_info)
+
+    
+    print(response.choices[0].message)
