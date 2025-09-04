@@ -1,4 +1,3 @@
-
 from zai import ZhipuAiClient
 import base64
 from PIL import Image
@@ -38,15 +37,37 @@ class NutritionistAgent(BaseAIAgent):
         - 体重管理
         - 营养补充，保健品
         - 过敏等注意事项
+        - 图片中宠物食物或宠物状态的分析
         请始终结合宠物的档案信息进行综合考虑和回答.
+        当用户发送图片时，请仔细分析图片内容，并结合宠物档案提供专业建议。
         你的说话风格应当像一个真人客服，简短明了，不乱添加表情或特殊符号。
 
         """
 
         return system_prompt
 
-    def generate_response(self, chat_history, user_context):
+    def _process_image_content(self, content_item):
+        """Process image content and convert base64 data URL to proper format"""
+        if content_item.get("type") == "image_url":
+            image_url = content_item["image_url"]["url"]
+            
+            # Check if it's a base64 data URL
+            if image_url.startswith("data:image"):
+                # Extract just the base64 part after the comma
+                base64_data = image_url.split(",", 1)[1] if "," in image_url else image_url
+                return {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": base64_data
+                    }
+                }
+            else:
+                # It's already in the right format or a regular URL
+                return content_item
+        
+        return content_item
 
+    def generate_response(self, chat_history, user_context):
         client = self.client
 
         # Add context about the pet
@@ -57,10 +78,22 @@ class NutritionistAgent(BaseAIAgent):
         # Construct system prompt
         messages = [{"role": "system", "content": self.system_prompt + context}]
 
-
+        # Process chat history and handle image content
         for item in chat_history:
-            messages.append(item)
-
+            processed_message = {
+                "role": item["role"],
+                "content": item["content"]
+            }
+            
+            # Process image content if it's a list (mixed content)
+            if isinstance(item["content"], list):
+                processed_content = []
+                for content_item in item["content"]:
+                    processed_item = self._process_image_content(content_item)
+                    processed_content.append(processed_item)
+                processed_message["content"] = processed_content
+            
+            messages.append(processed_message)
 
         # Generate response
         response = client.chat.completions.create(
@@ -91,34 +124,43 @@ if __name__ == "__main__":
     }
 
     agent = NutritionistAgent(client)
-    response = agent.generate_response([{"role": "user", "content": "你好我想问问lucky身体情况如何"}, {"role": "assistant", "content": "你好宝子，稍等我帮你看看"}], pet_info)
-    print(response)
+    
+    # Test with text only
+    response = agent.generate_response([
+        {"role": "user", "content": "你好我想问问lucky身体情况如何"}, 
+        {"role": "assistant", "content": "你好宝子，稍等我帮你看看"}
+    ], pet_info)
+    print("Text response:", response)
 
-    # Prediction with image input
+    # Test with image
     img_path = "your/path/xxx.png"
-    with open(img_path, "rb") as img_file:
-        img_base = base64.b64encode(img_file.read()).decode("utf-8")
-    
-
-    messages=[
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": img_base
+    try:
+        with open(img_path, "rb") as img_file:
+            img_base = base64.b64encode(img_file.read()).decode("utf-8")
+        
+        # Test with mixed content (text + image)
+        mixed_content_messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "请看看这张图片，分析一下lucky的状况"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{img_base}"
+                        }
                     }
-                },
-                {
-                    "type": "text",
-                    "text": "请描述这个图片"
-                }
-            ]
-        }
-    ]
+                ]
+            }
+        ]
 
-    response = agent.generate_response(messages, pet_info)
-
-    
-    print(response.choices[0].message)
+        response = agent.generate_response(mixed_content_messages, pet_info)
+        print("Image response:", response)
+        
+    except FileNotFoundError:
+        print("Image file not found, skipping image test")
+    except Exception as e:
+        print(f"Error processing image: {e}")
