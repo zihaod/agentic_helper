@@ -27,7 +27,6 @@ class BaseAIAgent(ABC):
         pass
 
 
-
 # Specialized AI Agents
 class NutritionistAgent(BaseAIAgent):
     def _get_system_prompt(self) -> str:
@@ -59,24 +58,8 @@ class NutritionistAgent(BaseAIAgent):
         messages = [{"role": "system", "content": self.system_prompt + context}]
 
 
-        role_mapping = {"user": "用户", "assistant": "营养师"}
-
-        history_str = ""
         for item in chat_history:
-            role = item['role']
-            content = item['content']
-            history_str += f"{role_mapping[role]}: {content} \n"
-
-
-        generation_prompt = f"""#对话历史
-        {history_str}
-
-        #任务
-        现在请你根据宠物档案信息和对话历史，以「营养师」的视角，继续发言。你的目的是为了询问并解决用户的相关宠物需求。
-        请保持真人般的说话风格，并直接输出你的回复发言，不要生成任何多余内容。
-        """
-
-        messages.append({"role": "user", "content": generation_prompt})
+            messages.append(item)
 
 
         # Generate response
@@ -89,7 +72,9 @@ class NutritionistAgent(BaseAIAgent):
 
         return response.choices[0].message.content
 
-# Example usage (commented out for import purposes)
+
+
+# Example usage 
 if __name__ == "__main__":
     client = ZhipuAiClient(api_key="049d19837128423582abbf65c34a0cb3.AGTarP6jc544gRQM")
     
