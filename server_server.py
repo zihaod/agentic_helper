@@ -83,6 +83,8 @@ async def generate_ai_response(request: Request):
         agent_history = []
         for i, msg in enumerate(chat_history):
             role = msg["role"]
+            if role == "server":
+                role = "assistant"
             
             agent_history.append({
                 "role": role,
@@ -121,7 +123,7 @@ async def send_response(request: Request):
     if response:
         # Add server response to history
         server_msg = {
-            "role": "assistant",
+            "role": "server",
             "content": response,
             "timestamp": datetime.now().strftime("%H:%M:%S")
         }
