@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Chat</title>
+    <!-- Include Marked.js for Markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+    <!-- Include DOMPurify for security -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
@@ -63,6 +67,137 @@
         .message.server .message-bubble {
             background: #e9ecef;
             color: black;
+        }
+        
+        /* Markdown content styling */
+        .message-bubble h1, .message-bubble h2, .message-bubble h3 {
+            margin-top: 0.5em;
+            margin-bottom: 0.3em;
+        }
+        
+        .message-bubble h1 { font-size: 1.5em; }
+        .message-bubble h2 { font-size: 1.3em; }
+        .message-bubble h3 { font-size: 1.1em; }
+        
+        .message-bubble p {
+            margin: 0.5em 0;
+        }
+        
+        .message-bubble ul, .message-bubble ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+        
+        .message-bubble code {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .message.user .message-bubble code {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .message-bubble pre {
+            background: rgba(0,0,0,0.1);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .message.user .message-bubble pre {
+            background: rgba(255,255,255,0.15);
+        }
+        
+        .message-bubble pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .message-bubble a {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+        
+        .message.user .message-bubble a {
+            color: #a3d5ff;
+        }
+        
+        .message-bubble blockquote {
+            border-left: 3px solid rgba(0,0,0,0.2);
+            margin: 0.5em 0;
+            padding-left: 1em;
+            font-style: italic;
+        }
+        
+        .message.user .message-bubble blockquote {
+            border-left-color: rgba(255,255,255,0.3);
+        }
+        
+        .message-bubble table {
+            border-collapse: collapse;
+            margin: 0.5em 0;
+        }
+        
+        .message-bubble th, .message-bubble td {
+            border: 1px solid rgba(0,0,0,0.2);
+            padding: 4px 8px;
+        }
+        
+        .message.user .message-bubble th,
+        .message.user .message-bubble td {
+            border-color: rgba(255,255,255,0.3);
+        }
+        
+        /* Link preview styles */
+        .link-preview {
+            margin: 10px 0;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+            cursor: pointer;
+        }
+        
+        .message.server .link-preview {
+            background: white;
+        }
+        
+        .message.user .link-preview {
+            background: rgba(255,255,255,0.95);
+            border-color: rgba(255,255,255,0.3);
+        }
+        
+        .link-preview-content {
+            padding: 12px;
+        }
+        
+        .link-preview-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        
+        .message.user .link-preview-title {
+            color: #333;
+        }
+        
+        .link-preview-description {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .link-preview-url {
+            font-size: 0.85em;
+            color: #999;
+        }
+        
+        .link-preview-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
         }
         
         .message-image {
@@ -249,6 +384,96 @@
         let isLoading = false;
         let selectedImage = null;
         
+        // Configure marked options
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false
+        });
+        
+        function renderMarkdown(text) {
+            // Parse markdown
+            const rawHtml = marked.parse(text);
+            // Sanitize HTML for security
+            const cleanHtml = DOMPurify.sanitize(rawHtml, {
+                ADD_ATTR: ['target', 'rel'],
+                ALLOW_DATA_ATTR: false
+            });
+            return cleanHtml;
+        }
+        
+        function extractAndProcessLinks(content) {
+            // Pattern to find URLs with optional metadata
+            // Format: [link text](url) or just plain URLs
+            // For metadata: <!--LINK_META:{"url":"...","title":"...","description":"...","image":"..."}-->
+            
+            const linkMetaPattern = /<!--LINK_META:(.*?)-->/g;
+            const urlPattern = /(https?:\/\/[^\s<>"{}|\\^\[\]`]+)/g;
+            
+            let processedContent = content;
+            const linkPreviews = [];
+            
+            // Extract link metadata if provided
+            let match;
+            while ((match = linkMetaPattern.exec(content)) !== null) {
+                try {
+                    const metadata = JSON.parse(match[1]);
+                    linkPreviews.push(metadata);
+                    processedContent = processedContent.replace(match[0], '');
+                } catch (e) {
+                    console.error('Failed to parse link metadata:', e);
+                }
+            }
+            
+            // Find plain URLs that don't have metadata
+            const urls = content.match(urlPattern) || [];
+            urls.forEach(url => {
+                if (!linkPreviews.some(preview => preview.url === url)) {
+                    linkPreviews.push({ url: url });
+                }
+            });
+            
+            return { content: processedContent.trim(), linkPreviews };
+        }
+        
+        function createLinkPreview(linkData) {
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'link-preview';
+            
+            if (linkData.title || linkData.description) {
+                let previewHtml = '<div class="link-preview-content">';
+                
+                if (linkData.image) {
+                    previewHtml = `<img class="link-preview-image" src="${linkData.image}" alt="Preview" onerror="this.style.display='none'">` + previewHtml;
+                }
+                
+                if (linkData.title) {
+                    previewHtml += `<div class="link-preview-title">${linkData.title}</div>`;
+                }
+                
+                if (linkData.description) {
+                    previewHtml += `<div class="link-preview-description">${linkData.description}</div>`;
+                }
+                
+                previewHtml += `<div class="link-preview-url">${linkData.url}</div>`;
+                previewHtml += '</div>';
+                
+                previewDiv.innerHTML = previewHtml;
+            } else {
+                // Simple link preview for URLs without metadata
+                previewDiv.innerHTML = `
+                    <div class="link-preview-content">
+                        <div class="link-preview-url">🔗 ${linkData.url}</div>
+                    </div>
+                `;
+            }
+            
+            previewDiv.onclick = () => window.open(linkData.url, '_blank');
+            
+            return previewDiv;
+        }
+        
         function handleImageSelect(event) {
             const file = event.target.files[0];
             if (file) {
@@ -313,6 +538,8 @@
         
         function displayMessages(messages) {
             const chatMessages = document.getElementById('chatMessages');
+            const shouldScroll = chatMessages.scrollHeight - chatMessages.scrollTop <= chatMessages.clientHeight + 50;
+            
             chatMessages.innerHTML = '';
             
             messages.forEach(msg => {
@@ -320,34 +547,55 @@
                 messageDiv.className = `message ${msg.role}`;
                 
                 let contentHtml = '';
+                let linkPreviews = [];
                 
                 // Handle different message content types
                 if (typeof msg.content === 'string') {
-                    contentHtml = msg.content;
+                    const processed = extractAndProcessLinks(msg.content);
+                    contentHtml = renderMarkdown(processed.content);
+                    linkPreviews = processed.linkPreviews;
                 } else if (Array.isArray(msg.content)) {
                     // Handle mixed content (text + images)
                     msg.content.forEach(item => {
                         if (item.type === 'text') {
-                            contentHtml += item.text;
+                            const processed = extractAndProcessLinks(item.text);
+                            contentHtml += renderMarkdown(processed.content);
+                            linkPreviews = linkPreviews.concat(processed.linkPreviews);
                         } else if (item.type === 'image_url') {
                             contentHtml += `<br><img class="message-image" src="${item.image_url.url}" alt="Uploaded image" onclick="openImageModal('${item.image_url.url}')">`;
                         }
                     });
                 } else if (msg.image) {
                     // Handle legacy image format
-                    contentHtml = msg.content;
+                    const processed = extractAndProcessLinks(msg.content);
+                    contentHtml = renderMarkdown(processed.content);
+                    linkPreviews = processed.linkPreviews;
                     contentHtml += `<br><img class="message-image" src="${msg.image}" alt="Uploaded image" onclick="openImageModal('${msg.image}')">`;
                 }
                 
-                messageDiv.innerHTML = `
-                    <div class="message-bubble">${contentHtml}</div>
-                    <div class="timestamp">${msg.timestamp}</div>
-                `;
+                const bubbleDiv = document.createElement('div');
+                bubbleDiv.className = 'message-bubble';
+                bubbleDiv.innerHTML = contentHtml;
+                
+                // Add link previews
+                linkPreviews.forEach(link => {
+                    bubbleDiv.appendChild(createLinkPreview(link));
+                });
+                
+                messageDiv.appendChild(bubbleDiv);
+                
+                const timestampDiv = document.createElement('div');
+                timestampDiv.className = 'timestamp';
+                timestampDiv.textContent = msg.timestamp;
+                messageDiv.appendChild(timestampDiv);
                 
                 chatMessages.appendChild(messageDiv);
             });
             
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            // Auto-scroll if near bottom
+            if (shouldScroll) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
         }
         
         async function sendMessage() {
