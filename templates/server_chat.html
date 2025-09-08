@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Server Chat Interface</title>
+    <!-- Include Marked.js for Markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+    <!-- Include DOMPurify for security -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.8/purify.min.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
@@ -63,6 +67,124 @@
         .message.server .message-bubble {
             background: #28a745;
             color: white;
+        }
+        
+        /* Markdown content styling */
+        .message-bubble h1, .message-bubble h2, .message-bubble h3 {
+            margin-top: 0.5em;
+            margin-bottom: 0.3em;
+        }
+        
+        .message-bubble h1 { font-size: 1.5em; }
+        .message-bubble h2 { font-size: 1.3em; }
+        .message-bubble h3 { font-size: 1.1em; }
+        
+        .message-bubble p {
+            margin: 0.5em 0;
+        }
+        
+        .message-bubble ul, .message-bubble ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+        
+        .message-bubble code {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .message-bubble pre {
+            background: rgba(0,0,0,0.1);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .message-bubble pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .message-bubble a {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+        
+        .message.server .message-bubble a {
+            color: #a3d5ff;
+        }
+        
+        .message-bubble blockquote {
+            border-left: 3px solid rgba(0,0,0,0.2);
+            margin: 0.5em 0;
+            padding-left: 1em;
+            font-style: italic;
+        }
+        
+        .message-bubble table {
+            border-collapse: collapse;
+            margin: 0.5em 0;
+        }
+        
+        .message-bubble th, .message-bubble td {
+            border: 1px solid rgba(0,0,0,0.2);
+            padding: 4px 8px;
+        }
+        
+        /* Link preview styles */
+        .link-preview {
+            margin: 10px 0;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        
+        .message.server .link-preview {
+            background: rgba(255,255,255,0.95);
+        }
+        
+        .link-preview-content {
+            padding: 12px;
+        }
+        
+        .link-preview-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        
+        .link-preview-description {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .link-preview-url {
+            font-size: 0.85em;
+            color: #999;
+        }
+        
+        .link-preview-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+        }
+        
+        .link-preview-loading {
+            padding: 8px;
+            text-align: center;
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        .link-preview-error {
+            padding: 8px;
+            text-align: center;
+            color: #d9534f;
+            font-size: 0.9em;
         }
         
         .message-image {
@@ -213,6 +335,23 @@
             font-weight: bold;
             cursor: pointer;
         }
+        
+        /* Markdown preview toggle */
+        .preview-toggle {
+            margin-bottom: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .preview-toggle label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .preview-toggle input[type="checkbox"] {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -232,11 +371,20 @@
                 <div id="lastMessageImage"></div>
             </div>
             
+            <div class="preview-toggle">
+                <label>
+                    <input type="checkbox" id="markdownPreview" onchange="toggleMarkdownPreview()">
+                    Show Markdown Preview
+                </label>
+            </div>
+            
             <textarea 
                 id="responseInput" 
                 class="response-textarea" 
-                placeholder="Type your response here... You can also click 'Generate AI Response' to get a suggestion."
+                placeholder="Type your response here... You can use Markdown formatting and include links with metadata in JSON format."
             ></textarea>
+            
+            <div id="markdownPreviewPane" style="display: none; margin-bottom: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 10px; background: white;"></div>
             
             <div class="button-group">
                 <button class="btn btn-primary" onclick="generateAIResponse()">
@@ -260,6 +408,133 @@
 
     <script>
         let lastUserMessage = null;
+        let linkPreviewCache = {};
+        
+        // Configure marked options
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false
+        });
+        
+        function renderMarkdown(text) {
+            // Parse markdown
+            const rawHtml = marked.parse(text);
+            // Sanitize HTML for security
+            const cleanHtml = DOMPurify.sanitize(rawHtml, {
+                ADD_ATTR: ['target', 'rel'],
+                ALLOW_DATA_ATTR: false
+            });
+            return cleanHtml;
+        }
+        
+        function extractAndProcessLinks(content) {
+            // Pattern to find URLs with optional metadata
+            // Format: [link text](url) or just plain URLs
+            // For metadata: <!--LINK_META:{"url":"...","title":"...","description":"...","image":"..."}-->
+            
+            const linkMetaPattern = /<!--LINK_META:(.*?)-->/g;
+            const urlPattern = /(https?:\/\/[^\s<>"{}|\\^\[\]`]+)/g;
+            
+            let processedContent = content;
+            const linkPreviews = [];
+            
+            // Extract link metadata if provided
+            let match;
+            while ((match = linkMetaPattern.exec(content)) !== null) {
+                try {
+                    const metadata = JSON.parse(match[1]);
+                    linkPreviews.push(metadata);
+                    processedContent = processedContent.replace(match[0], '');
+                } catch (e) {
+                    console.error('Failed to parse link metadata:', e);
+                }
+            }
+            
+            // Find plain URLs that don't have metadata
+            const urls = content.match(urlPattern) || [];
+            urls.forEach(url => {
+                if (!linkPreviews.some(preview => preview.url === url)) {
+                    linkPreviews.push({ url: url });
+                }
+            });
+            
+            return { content: processedContent.trim(), linkPreviews };
+        }
+        
+        function createLinkPreview(linkData) {
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'link-preview';
+            
+            if (linkData.title || linkData.description) {
+                let previewHtml = '<div class="link-preview-content">';
+                
+                if (linkData.image) {
+                    previewHtml = `<img class="link-preview-image" src="${linkData.image}" alt="Preview" onerror="this.style.display='none'">` + previewHtml;
+                }
+                
+                if (linkData.title) {
+                    previewHtml += `<div class="link-preview-title">${linkData.title}</div>`;
+                }
+                
+                if (linkData.description) {
+                    previewHtml += `<div class="link-preview-description">${linkData.description}</div>`;
+                }
+                
+                previewHtml += `<div class="link-preview-url">${linkData.url}</div>`;
+                previewHtml += '</div>';
+                
+                previewDiv.innerHTML = previewHtml;
+            } else {
+                // Simple link preview for URLs without metadata
+                previewDiv.innerHTML = `
+                    <div class="link-preview-content">
+                        <div class="link-preview-url">🔗 ${linkData.url}</div>
+                    </div>
+                `;
+            }
+            
+            previewDiv.style.cursor = 'pointer';
+            previewDiv.onclick = () => window.open(linkData.url, '_blank');
+            
+            return previewDiv;
+        }
+        
+        function toggleMarkdownPreview() {
+            const checkbox = document.getElementById('markdownPreview');
+            const preview = document.getElementById('markdownPreviewPane');
+            const input = document.getElementById('responseInput');
+            
+            if (checkbox.checked) {
+                preview.style.display = 'block';
+                updateMarkdownPreview();
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+        
+        function updateMarkdownPreview() {
+            const preview = document.getElementById('markdownPreviewPane');
+            const input = document.getElementById('responseInput');
+            
+            if (preview.style.display !== 'none') {
+                const { content, linkPreviews } = extractAndProcessLinks(input.value);
+                let previewHtml = renderMarkdown(content);
+                
+                // Add link previews
+                if (linkPreviews.length > 0) {
+                    previewHtml += '<div style="margin-top: 10px;">';
+                    linkPreviews.forEach(link => {
+                        const previewElement = createLinkPreview(link);
+                        previewHtml += previewElement.outerHTML;
+                    });
+                    previewHtml += '</div>';
+                }
+                
+                preview.innerHTML = previewHtml || '<em style="color: #999;">Preview will appear here...</em>';
+            }
+        }
         
         function openImageModal(imageSrc) {
             const modal = document.getElementById('imageModal');
@@ -335,29 +610,47 @@
                 messageDiv.className = `message ${msg.role}`;
                 
                 let contentHtml = '';
+                let linkPreviews = [];
                 
                 // Handle different message content types
                 if (typeof msg.content === 'string') {
-                    contentHtml = msg.content;
+                    const processed = extractAndProcessLinks(msg.content);
+                    contentHtml = renderMarkdown(processed.content);
+                    linkPreviews = processed.linkPreviews;
                 } else if (Array.isArray(msg.content)) {
                     // Handle mixed content (text + images)
                     msg.content.forEach(item => {
                         if (item.type === 'text') {
-                            contentHtml += item.text;
+                            const processed = extractAndProcessLinks(item.text);
+                            contentHtml += renderMarkdown(processed.content);
+                            linkPreviews = linkPreviews.concat(processed.linkPreviews);
                         } else if (item.type === 'image_url') {
                             contentHtml += `<br><img class="message-image" src="${item.image_url.url}" alt="Uploaded image" onclick="openImageModal('${item.image_url.url}')">`;
                         }
                     });
                 } else if (msg.image) {
                     // Handle legacy image format
-                    contentHtml = msg.content;
+                    const processed = extractAndProcessLinks(msg.content);
+                    contentHtml = renderMarkdown(processed.content);
+                    linkPreviews = processed.linkPreviews;
                     contentHtml += `<br><img class="message-image" src="${msg.image}" alt="Uploaded image" onclick="openImageModal('${msg.image}')">`;
                 }
                 
-                messageDiv.innerHTML = `
-                    <div class="message-bubble">${contentHtml}</div>
-                    <div class="timestamp">${msg.timestamp}</div>
-                `;
+                const bubbleDiv = document.createElement('div');
+                bubbleDiv.className = 'message-bubble';
+                bubbleDiv.innerHTML = contentHtml;
+                
+                // Add link previews
+                linkPreviews.forEach(link => {
+                    bubbleDiv.appendChild(createLinkPreview(link));
+                });
+                
+                messageDiv.appendChild(bubbleDiv);
+                
+                const timestampDiv = document.createElement('div');
+                timestampDiv.className = 'timestamp';
+                timestampDiv.textContent = msg.timestamp;
+                messageDiv.appendChild(timestampDiv);
                 
                 chatMessages.appendChild(messageDiv);
             });
@@ -394,6 +687,7 @@
                 if (data.response) {
                     document.getElementById('responseInput').value = data.response;
                     showStatus('AI response generated! You can edit it before sending.', 'info');
+                    updateMarkdownPreview();
                 }
             } catch (error) {
                 console.error('Error generating AI response:', error);
@@ -430,6 +724,7 @@
                 
                 if (result.ok) {
                     responseInput.value = '';
+                    updateMarkdownPreview();
                     showStatus('Response sent successfully!', 'success');
                     await loadChatHistory();
                 }
@@ -461,6 +756,9 @@
                     sendResponse();
                 }
             });
+            
+            // Update preview on input
+            textarea.addEventListener('input', updateMarkdownPreview);
         });
         
         // Close modal with Escape key
