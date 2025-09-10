@@ -208,7 +208,7 @@ class NutritionistAgent(BaseAIAgent):
         result = send_search_request(
             query=query,
             api_key=self.search_api_key,
-            dataset_id=dataset_id
+            dataset_id=dataset_id,
             page_number=page_number,
             page_size=page_size
         )
