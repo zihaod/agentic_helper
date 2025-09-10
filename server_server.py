@@ -18,7 +18,7 @@ templates = Jinja2Templates(directory="templates")
 
 # In-memory storage
 chat_history = []
-USER_URL = "http://localhost:8000"  # Will be updated by interactive setup
+USER_URL = "https://qialg2.ngrok.app"  # Will be updated by interactive setup
 
 # Initialize the AI client and agent
 client = ZhipuAiClient(api_key="049d19837128423582abbf65c34a0cb3.AGTarP6jc544gRQM")
@@ -26,15 +26,15 @@ agent = NutritionistAgent(client)
 
 # Pet information - you might want to make this configurable per user
 pet_info = {
-    "姓名": "lucky",
-    "品种": "中华田园猫-橘猫",
-    "年龄": "3岁",
-    "性别": "雄性",
-    "体重": "4.6kg",
+    "姓名": "笨笨",
+    "品种": "巴哥犬",
+    "年龄": "13岁",
+    "性别": "雌性",
+    "体重": "9.8kg",
     "绝育史": "已绝育",
     "疫苗史": "已接种疫苗",
-    "行为数据": "近期未见异常波动。整体运动量（跑步/跳跃/逗猫）高于同类猫咪平均值约12%，较活泼。",
-    "健康历史": "曾于换粮时出现软便，肠胃敏感",
+    "行为数据": "近期未见异常波动。整体运动量（跑步/跳跃/逗猫）低于同类狗狗平均值约5%",
+    "健康历史": "曾患皮肤病，无其它慢性疾病",
 }
 
 @app.get("/", response_class=HTMLResponse)
@@ -201,10 +201,12 @@ if __name__ == "__main__":
     # Set the authtoken
     ngrok.set_auth_token(auth_token)
 
-    ngrok_tunnel = ngrok.connect(8001)
+    #ngrok_tunnel = ngrok.connect(8001)
+    ngrok_tunnel = ngrok.connect(8001, domain="qialg.ngrok.app")
+        
     print('Server Public URL:', ngrok_tunnel.public_url)
 
-    interactive_url_setup()
+    #interactive_url_setup()
 
     nest_asyncio.apply()
 
