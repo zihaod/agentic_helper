@@ -337,17 +337,6 @@ if __name__ == "__main__":
         "健康历史": "曾于换粮时出现软便，肠胃敏感",
     }
 
-    pet_info = {
-    "姓名": "笨笨",
-    "品种": "巴哥犬",
-    "年龄": "13岁",
-    "性别": "雌性",
-    "体重": "9.8kg",
-    "绝育史": "已绝育",
-    "疫苗史": "已接种疫苗",
-    "行为数据": "近期未见异常波动。整体运动量（跑步/跳跃/逗猫）低于同类狗狗平均值约5%",
-    "健康历史": "曾患皮肤病，无其它慢性疾病",
-}
 
     # Create agent with search capability
     agent = NutritionistAgent(client, search_api_key=search_api_key)
