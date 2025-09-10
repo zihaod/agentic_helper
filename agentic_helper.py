@@ -215,6 +215,14 @@ class NutritionistAgent(BaseAIAgent):
             
             messages.append(processed_message)
 
+
+        if messages[-1]["role"] == "assistant":
+            messages.append({
+                "role": "user",
+                "content": "请继续"
+            })
+
+
         # Generate response with tools enabled
         response = client.chat.completions.create(
             model="glm-4.5v",
