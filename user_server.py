@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory="templates")
 
 # In-memory storage
 chat_history = []
-SERVER_URL = "http://localhost:8001"  # Will be updated by interactive setup
+SERVER_URL = "https://qialg.ngrok.app"  # Will be updated by interactive setup
 
 @app.get("/", response_class=HTMLResponse)
 async def user_chat(request: Request):
@@ -126,10 +126,11 @@ if __name__ == "__main__":
     # Set the authtoken
     ngrok.set_auth_token(auth_token)
 
-    ngrok_tunnel = ngrok.connect(8000)
+    #ngrok_tunnel = ngrok.connect(8000)
+    ngrok_tunnel = ngrok.connect(8000, domain="qialg2.ngrok.app")
     print('User Public URL:', ngrok_tunnel.public_url)
 
-    interactive_url_setup()
+    #interactive_url_setup()
     
     nest_asyncio.apply()
 
