@@ -409,7 +409,7 @@
             // For metadata: <!--LINK_META:{"url":"...","title":"...","description":"...","image":"..."}-->
             
             const linkMetaPattern = /<!--LINK_META:(.*?)-->/g;
-            const urlPattern = /(https?:\/\/[^\s<>"{}|\\^\[\]`]+)/g;
+            const urlPattern = /(https?:\/\/[^\s<>"{}|\\^\[\]`()]+)/g;
             
             let processedContent = content;
             const linkPreviews = [];
