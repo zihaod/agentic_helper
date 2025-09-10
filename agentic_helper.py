@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 
 
 # Search recommendation function
-def send_search_request(query, api_key, page_number=1, page_size=10, user_id="dzh_1", dataset_id="187634055"):
+def send_search_request(query, api_key, dataset_id="187634055", page_number=1, page_size=10, user_id="dzh_1"):
     """
     Send a POST request to the AI search API
     
@@ -96,14 +96,41 @@ class NutritionistAgent(BaseAIAgent):
             {
                 "type": "function",
                 "function": {
-                    "name": "search_pet_recommendations",
-                    "description": "搜索推荐宠物相关的产品",
+                    "name": "search_pet_food_recommendations",
+                    "description": "搜索推荐宠物主粮相关的产品",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
                                 "description": "搜索或推荐目标，如：一岁中华田园猫高性价比湿粮"
+                            },
+                            "page_number": {
+                                "type": "integer",
+                                "description": "页码，默认为1",
+                                "default": 1
+                            },
+                            "page_size": {
+                                "type": "integer",
+                                "description": "每页结果数量，默认为10",
+                                "default": 10
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_pet_supplement_recommendations",
+                    "description": "搜索推荐宠物保健品产品",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "搜索或推荐目标，如：老年蓝猫补钙保健品"
                             },
                             "page_number": {
                                 "type": "integer",
@@ -134,7 +161,7 @@ class NutritionistAgent(BaseAIAgent):
         - 图片中宠物食物或宠物状态的分析
         
         # 工具
-        你可以使用搜索推荐工具来查找宠物产品的推荐信息。
+        你可以使用提供的搜索推荐工具来查找宠物产品的推荐信息。
         在使用工具时，请始终全面结合宠物的档案信息进行调用。
         **展示来源**：在给用户介绍推荐的产品时，请务必给出对应的产品购买链接以及图片链接（如有）。
         链接的输出方式为：[文字](https://xxx.com)
@@ -170,14 +197,18 @@ class NutritionistAgent(BaseAIAgent):
         
         return content_item
     
-    def execute_search(self, query: str, page_number: int = 1, page_size: int = 10):
+    def execute_search(self, dataset: str, query: str, page_number: int = 1, page_size: int = 10):
         """Execute search recommendation function"""
         if not self.search_api_key:
             return {"error": "搜索API密钥未配置"}
+
+        dataset_id = "187634055" if dataset == "food" else "187259015"
         
+       
         result = send_search_request(
             query=query,
             api_key=self.search_api_key,
+            dataset_id=dataset_id
             page_number=page_number,
             page_size=page_size
         )
@@ -247,8 +278,16 @@ class NutritionistAgent(BaseAIAgent):
                 print("----ARGS: ", arguments)
                 
                 # Execute the search function
-                if function_name == "search_pet_recommendations":
+                if function_name == "search_pet_food_recommendations":
                     search_result = self.execute_search(
+                        dataset="food",
+                        query=arguments.get("query", ""),
+                        page_number=arguments.get("page_number", 1),
+                        page_size=arguments.get("page_size", 10)
+                    )
+                elif function_name == "search_pet_supplement_recommendations":
+                    search_result = self.execute_search(
+                        dataset="supplement",
                         query=arguments.get("query", ""),
                         page_number=arguments.get("page_number", 1),
                         page_size=arguments.get("page_size", 10)
